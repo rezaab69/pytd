@@ -11,21 +11,30 @@ Skipped unless a real library loads and credentials are present::
     TDPY_API_ID=... TDPY_API_HASH=... \\
     pytest -m requires_binary
 
-No phone number is ever submitted, so no login code is sent to anyone. The
-furthest these go is the point where TDLib asks for one.
+No real phone number is ever submitted, so no login code is sent to anyone.
+
+Two tests talk to Telegram's servers and need a further opt-in, so that a
+routine run never does::
+
+    TDPY_NETWORK_TESTS=1 pytest -m requires_binary
+
+One makes a read-only call to production. The other validates the api_hash on
+Telegram's *test* servers with a reserved ``99966XYYYY`` number, stopping at
+the code prompt -- no SMS reaches anyone and no account is created.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
+import random
 from pathlib import Path
 
 import pytest
 
 from tdpy.api import types
 from tdpy.api.client import TypedClient
-from tdpy.auth import Authorization, BotCredentials, TdlibSettings
+from tdpy.auth import Authorization, BotCredentials, CallbackCredentials, PhoneNumber, TdlibSettings
 from tdpy.core.errors import TDLibError
 from tdpy.helpers.text import parse
 
@@ -178,3 +187,78 @@ async def test_tdlib_rejects_empty_credentials(client: TypedClient, tmp_path: Pa
         )
 
     assert excinfo.value.code == 400
+
+
+# ---- against Telegram's servers (TDPY_NETWORK_TESTS=1) -----------------
+
+
+def network_or_skip() -> None:
+    if os.environ.get("TDPY_NETWORK_TESTS") != "1":
+        pytest.skip("set TDPY_NETWORK_TESTS=1 to contact Telegram's servers")
+
+
+class ReachedCodePrompt(Exception):
+    """Marks that Telegram accepted the login and asked for a code."""
+
+
+@pytest.mark.requires_network
+async def test_production_servers_answer(client: TypedClient, tmp_path: Path) -> None:
+    # A read-only round trip allowed before login: proves connectivity and
+    # that the api_id is accepted, without touching any account.
+    network_or_skip()
+    api_id, api_hash = credentials()
+    settings = TdlibSettings(
+        api_id=api_id,
+        api_hash=api_hash,
+        database_directory=tmp_path / "td",
+        use_message_database=False,
+    )
+
+    class StopAtPhoneNumber(BotCredentials):
+        async def login_method(self) -> types.AuthorizationState:
+            raise ReachedPhoneNumber
+
+    with pytest.raises(ReachedPhoneNumber):
+        await Authorization(client, settings, StopAtPhoneNumber("unused")).run(timeout=60)
+
+    country = await asyncio.wait_for(client.get_country_code(), 60)
+    assert len(country.text) == 2
+
+
+@pytest.mark.requires_network
+async def test_the_api_hash_is_accepted_by_telegram(client: TypedClient, tmp_path: Path) -> None:
+    """Prove the api_hash is valid, which nothing offline can.
+
+    Telegram only checks the hash when a login starts, so this starts one --
+    on the *test* servers, with a number from the reserved 99966XYYYY range.
+    A wrong hash is rejected right there; a right one reaches the code prompt,
+    where the test stops. No SMS reaches anyone and no account is created.
+    """
+    network_or_skip()
+    api_id, api_hash = credentials()
+    settings = TdlibSettings(
+        api_id=api_id,
+        api_hash=api_hash,
+        database_directory=tmp_path / "td",
+        use_test_dc=True,
+        use_message_database=False,
+    )
+
+    async def login_method() -> PhoneNumber:
+        return PhoneNumber("999662" + str(random.randint(1000, 9999)))
+
+    async def refuse_code(_info: types.AuthenticationCodeInfo) -> str:
+        raise ReachedCodePrompt
+
+    flow = Authorization(
+        client,
+        settings,
+        CallbackCredentials(login_method=login_method, authentication_code=refuse_code),
+    )
+    try:
+        with pytest.raises(ReachedCodePrompt):
+            await flow.run(timeout=90)
+        assert flow.visited[-1] == "authorizationStateWaitCode"
+    finally:
+        # Wipe the half-started session rather than leave it in the database.
+        await client.invoke({"@type": "destroy"})
