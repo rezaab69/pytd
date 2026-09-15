@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_LINK_MODE: copy
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync
+      - name: ruff check
+        run: uv run ruff check src tests
+      - name: ruff format
+        run: uv run ruff format --check src tests
+
+  types:
+    # The library loader branches on sys.platform, so a single OS would leave
+    # two thirds of that code unchecked.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: uv run mypy
+
+  codegen:
+    # Fails when the committed API and td_api.tl disagree, so a schema bump
+    # cannot ship half-applied.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync
+      - run: uv run python -m tdpy.codegen --check
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --python ${{ matrix.python }}
+      # No TDLib here: the whole suite runs against the in-process fake, and
+      # the handful of requires_binary tests skip themselves.
+      - run: uv run --python ${{ matrix.python }} pytest --cov=tdpy --cov-fail-under=90
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: the wheel must carry its typing marker
+        run: |
+          uv run python - <<'PY'
+          import glob, sys, zipfile
+          names = zipfile.ZipFile(sorted(glob.glob("dist/*.whl"))[-1]).namelist()
+          missing = [n for n in ("tdpy/py.typed", "tdpy/api/types.py") if n not in names]
+          sys.exit(f"wheel is missing {missing}" if missing else 0)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  integration:
+    # Opt-in: building TDLib takes tens of minutes and several GB, so it does
+    # not belong on every pull request.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: install a prebuilt tdjson
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev zlib1g-dev
+      - name: build TDLib
+        run: |
+          git clone --depth 1 https://github.com/tdlib/td.git
+          cmake -S td -B td/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build td/build --target tdjson -j"$(nproc)"
+          echo "TDJSON_PATH=$PWD/td/build/libtdjson.so" >> "$GITHUB_ENV"
+      - run: uv sync
+      # These are the tests that skip everywhere else.
+      - run: uv run pytest -m requires_binary --no-cov
