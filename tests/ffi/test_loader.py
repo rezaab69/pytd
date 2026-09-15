@@ -71,3 +71,17 @@ def test_a_non_library_file_reports_the_os_error(tmp_path: Path) -> None:
 
     assert excinfo.value.attempts[0][0] == str(impostor)
     assert "no such file" not in excinfo.value.attempts[0][1]
+
+
+def test_the_env_var_disables_fallback_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Naming a library and getting a different one is the worst outcome: the
+    # build under test is not the build that loaded, and nothing says so.
+    monkeypatch.setenv("TDJSON_PATH", "/named/explicitly.so")
+
+    assert [Path(c) for c in iter_candidates()] == [Path("/named/explicitly.so")]
+
+
+def test_an_unguided_search_still_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TDJSON_PATH", raising=False)
+
+    assert set(library_names()) <= set(iter_candidates())

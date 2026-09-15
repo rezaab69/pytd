@@ -69,7 +69,8 @@ ignore = ["ANN401"]
 extend-immutable-calls = ["tdpy.api.base.Int64"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["ANN"]
+# N818: tests use exceptions as control-flow markers, not failures.
+"tests/**" = ["ANN", "N818"]
 # FloodWait / BadRequest / Unauthorized are the names Telethon and Pyrogram use.
 # Matching the ecosystem is worth more here than N818's "Error" suffix.
 "src/tdpy/core/errors.py" = ["N818"]

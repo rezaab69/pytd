@@ -123,6 +123,9 @@ def iter_candidates(explicit: str | Path | None = None) -> Iterator[str]:
     A spec is either an absolute path or a bare filename; bare names are handed
     to the OS loader so ``PATH`` / ``LD_LIBRARY_PATH`` / ``DYLD_LIBRARY_PATH``
     still work the way users expect.
+
+    Naming a library -- by argument or by ``TDJSON_PATH`` -- suppresses every
+    other candidate. Only an unguided search falls back.
     """
     if explicit is not None:
         yield from _from_path_like(explicit)
@@ -130,7 +133,12 @@ def iter_candidates(explicit: str | Path | None = None) -> Iterator[str]:
 
     env_value = os.environ.get(_ENV_VAR)
     if env_value:
+        # As deliberate as the argument, and treated the same way. If the named
+        # library will not load, falling through to a system copy would test a
+        # different build than the one that was pointed at -- and the symptom
+        # is silence, not an error.
         yield from _from_path_like(env_value)
+        return
 
     yield from _packaged_candidates()
 

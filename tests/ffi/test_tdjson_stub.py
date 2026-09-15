@@ -214,3 +214,44 @@ def test_reset_closes_the_cached_instance(stub: StubLib) -> None:
     assert instance._closed
     assert get_tdjson() is not instance
     reset_tdjson()
+
+
+def test_logging_is_quieted_on_load(stub: StubLib) -> None:
+    # TDLib floods stderr at its default verbosity. A library must not.
+    import json
+
+    from tdpy._ffi.tdjson import DEFAULT_LOG_VERBOSITY
+
+    TDJson()
+    (request,) = stub.td_execute.calls[0]
+
+    assert json.loads(request) == {
+        "@type": "setLogVerbosityLevel",
+        "new_verbosity_level": DEFAULT_LOG_VERBOSITY,
+    }
+    assert stub.td_set_log_message_callback.calls, "what remains must reach `logging`"
+
+
+def test_the_verbosity_can_be_chosen(stub: StubLib) -> None:
+    import json
+
+    TDJson(log_verbosity=3)
+    (request,) = stub.td_execute.calls[0]
+
+    assert json.loads(request)["new_verbosity_level"] == 3
+
+
+def test_tdlib_logging_can_be_left_alone(stub: StubLib) -> None:
+    TDJson(log_verbosity=None)
+
+    assert stub.td_execute.calls == []
+    assert stub.td_set_log_message_callback.calls == []
+
+
+def test_set_log_verbosity_is_available_directly(td: TDJson, stub: StubLib) -> None:
+    import json
+
+    td.set_log_verbosity(4)
+    (request,) = stub.td_execute.calls[-1]
+
+    assert json.loads(request)["new_verbosity_level"] == 4

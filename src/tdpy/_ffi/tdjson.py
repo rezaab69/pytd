@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import json
 import logging
 import threading
 from pathlib import Path
@@ -38,6 +39,12 @@ _LOG_CALLBACK_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int, ctypes.c_char_p)
 # TDLib keeps the raw function pointer we hand it, so the ctypes trampoline must
 # outlive any Python reference to the TDJson that installed it.
 _live_callbacks: list[object] = []
+
+#: TDLib writes its internal log to stderr at verbosity 5 unless told not
+#: to -- around 70 lines for a second of idling. A library has no business
+#: doing that, so tdpy quiets it and routes what remains through `logging`,
+#: where the application decides what to show.
+DEFAULT_LOG_VERBOSITY = 1
 
 # TDLib verbosity: 0 fatal, 1 error, 2 warning, 3 info, 4+ debug.
 _LOG_LEVELS = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO}
@@ -59,12 +66,28 @@ class TDJson:
     they all share the same underlying C state.
     """
 
-    def __init__(self, library_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        library_path: str | Path | None = None,
+        *,
+        log_verbosity: int | None = DEFAULT_LOG_VERBOSITY,
+    ) -> None:
+        """Load the library.
+
+        Args:
+            library_path: An exact library file or a directory to search.
+            log_verbosity: Quiet TDLib to this level and forward what is left
+                to the ``tdpy.tdlib`` logger. ``None`` leaves TDLib's logging
+                exactly as it was, stderr flood included.
+        """
         self._lib, self.library_path = load_tdjson(library_path)
         self._receive_lock = threading.Lock()
         self._receive_owner: int | None = None
         self._closed = False
         self._bind()
+        if log_verbosity is not None:
+            self.set_log_verbosity(log_verbosity)
+            self.forward_logs_to_logging(log_verbosity)
 
     def _bind(self) -> None:
         lib = self._lib
@@ -128,6 +151,17 @@ class TDJson:
         holder = _LOG_CALLBACK_TYPE(trampoline)
         _live_callbacks.append(holder)
         self._lib.td_set_log_message_callback(max_verbosity, holder)
+
+    def set_log_verbosity(self, level: int) -> None:
+        """Set how much TDLib logs at all.
+
+        0 is fatal only, 1 errors, 2 warnings, 3 info, 4 and up debug. This is
+        process-wide and takes effect immediately; it is what actually stops
+        the stderr output, since installing a log callback does not.
+        """
+        self.execute(
+            json.dumps({"@type": "setLogVerbosityLevel", "new_verbosity_level": level}).encode()
+        )
 
     def forward_logs_to_logging(self, max_verbosity: int = 2) -> None:
         """Convenience wiring of TDLib's log into the ``tdpy.tdlib`` logger."""

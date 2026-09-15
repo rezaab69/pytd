@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from tdpy.codegen.emit import (
+    FormatterUnavailableError,
     emit_functions,
     emit_methods,
     emit_types,
@@ -17,6 +18,16 @@ from tdpy.codegen.tl_parser import parse
 
 DEFAULT_SCHEMA = Path("tools/td_api.tl")
 DEFAULT_OUTPUT = Path("src/tdpy/api")
+
+
+def _normalised(text: str) -> str:
+    """Compare on content, not on newlines.
+
+    Generated code is written LF-only, but a checkout can still arrive with
+    CRLF. Without this, `--check` fails on the wrong platform instead of on a
+    real schema change.
+    """
+    return text.replace(chr(13) + chr(10), chr(10))
 
 
 def render(schema_text: str) -> dict[str, str]:
@@ -45,14 +56,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"schema not found: {args.schema}", file=sys.stderr)
         return 2
 
-    rendered = render(args.schema.read_text(encoding="utf-8"))
+    try:
+        rendered = render(args.schema.read_text(encoding="utf-8"))
+    except FormatterUnavailableError as exc:
+        # A traceback here would suggest a bug in tdpy rather than a
+        # missing tool the caller can install.
+        print(exc, file=sys.stderr)
+        return 2
 
     if args.check:
         stale = [
             name
             for name, source in rendered.items()
             if not (args.output / name).is_file()
-            or (args.output / name).read_text(encoding="utf-8") != source
+            or _normalised((args.output / name).read_text(encoding="utf-8")) != _normalised(source)
         ]
         if stale:
             print(
@@ -68,7 +85,9 @@ def main(argv: list[str] | None = None) -> int:
 
     args.output.mkdir(parents=True, exist_ok=True)
     for name, source in rendered.items():
-        (args.output / name).write_text(source, encoding="utf-8")
+        # newline="" keeps Python from translating to the platform ending, so
+        # the same schema renders byte-identically on every OS.
+        (args.output / name).write_text(source, encoding="utf-8", newline="")
         print(f"wrote {args.output / name} ({source.count(chr(10))} lines)")
     return 0
 

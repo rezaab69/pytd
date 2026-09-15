@@ -1,0 +1,9 @@
+# Line endings are normalised to LF in the repository. Generated code is
+# compared byte-for-byte against a fresh render by `python -m tdpy.codegen
+# --check`, and a checkout whose newlines differ from the generator's would
+# fail that check on the wrong platform rather than on a real schema change.
+* text=auto eol=lf
+
+*.so binary
+*.dll binary
+*.dylib binary
