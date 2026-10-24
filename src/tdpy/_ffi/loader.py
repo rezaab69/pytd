@@ -17,6 +17,7 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+from tdpy._envfile import getenv
 from tdpy.exceptions import TdpyError
 
 __all__ = ["TDJsonNotFoundError", "iter_candidates", "library_names", "load_tdjson"]
@@ -124,14 +125,15 @@ def iter_candidates(explicit: str | Path | None = None) -> Iterator[str]:
     to the OS loader so ``PATH`` / ``LD_LIBRARY_PATH`` / ``DYLD_LIBRARY_PATH``
     still work the way users expect.
 
-    Naming a library -- by argument or by ``TDJSON_PATH`` -- suppresses every
+    Naming a library -- by argument or by ``TDJSON_PATH``, whether exported or
+    written in ``.env`` -- suppresses every
     other candidate. Only an unguided search falls back.
     """
     if explicit is not None:
         yield from _from_path_like(explicit)
         return  # An explicit request must not silently fall back to something else.
 
-    env_value = os.environ.get(_ENV_VAR)
+    env_value = getenv(_ENV_VAR)
     if env_value:
         # As deliberate as the argument, and treated the same way. If the named
         # library will not load, falling through to a system copy would test a

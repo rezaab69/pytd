@@ -8,11 +8,11 @@ what lets the same flow serve a CLI, a bot and a GUI.
 from __future__ import annotations
 
 import asyncio
-import os
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
+from tdpy._envfile import getenv
 from tdpy.api import types
 from tdpy.exceptions import TdpyError
 
@@ -189,7 +189,8 @@ class EnvCredentials(Credentials):
 
     Codes cannot realistically come from a variable, so only the values that
     can are supported: ``TDPY_BOT_TOKEN``, ``TDPY_PHONE`` and
-    ``TDPY_PASSWORD``. Pass ``fallback`` to hand the interactive steps to
+    ``TDPY_PASSWORD``, each exported or written in the application's ``.env``
+    file. Pass ``fallback`` to hand the interactive steps to
     another provider.
     """
 
@@ -197,10 +198,10 @@ class EnvCredentials(Credentials):
         self.fallback = fallback
 
     async def login_method(self) -> LoginMethod:
-        token = os.environ.get("TDPY_BOT_TOKEN")
+        token = getenv("TDPY_BOT_TOKEN")
         if token:
             return BotToken(token)
-        phone = os.environ.get("TDPY_PHONE")
+        phone = getenv("TDPY_PHONE")
         if phone:
             return PhoneNumber(phone)
         if self.fallback is not None:
@@ -213,7 +214,7 @@ class EnvCredentials(Credentials):
         return await super().authentication_code(info)
 
     async def password(self, state: types.AuthorizationStateWaitPassword) -> str:
-        password = os.environ.get("TDPY_PASSWORD")
+        password = getenv("TDPY_PASSWORD")
         if password:
             return password
         if self.fallback is not None:

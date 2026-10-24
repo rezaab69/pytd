@@ -11,10 +11,19 @@ has to be installed separately — see [installing-tdlib.md](installing-tdlib.md
 identify your *application*, not your account, and TDLib refuses to start
 without them.
 
-```bash
-export TDPY_API_ID=1234567
-export TDPY_API_HASH=0123456789abcdef0123456789abcdef
+Put them in a `.env` file in the directory you run your application from.
+tdpy reads it automatically; copy [`.env.example`](../.env.example) to start:
+
+```ini
+TDJSON_PATH=/path/to/libtdjson.so
+TDPY_API_ID=1234567
+TDPY_API_HASH=0123456789abcdef0123456789abcdef
+TDPY_BOT_TOKEN=123456:ABC-DEF
 ```
+
+Keep `.env` out of version control. Exported variables of the same name still
+work and take precedence over the file, and `TDPY_ENV_FILE` points tdpy at a
+file somewhere else.
 
 ## Install
 
@@ -96,6 +105,7 @@ async with Client() as client:
 
 | You want to | Look at |
 |---|---|
+| Build a bot (guide written for AI agents) | [ai-bot-guide.md](ai-bot-guide.md) |
 | Log in | [auth.md](auth.md) |
 | Route updates to handlers | [dispatch.md](dispatch.md) |
 | Find a TDLib method | `tdpy.api.methods.Methods`, or [TDLib's docs](https://core.telegram.org/tdlib/docs/) |

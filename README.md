@@ -13,8 +13,35 @@ A complete async Python framework for Telegram's [TDLib](https://core.telegram.o
 - A `tdjson` shared library on the machine (`tdjson.dll`, `libtdjson.so`, or
   `libtdjson.dylib`). TDLib publishes no official Python wheels; see
   [docs/installing-tdlib.md](docs/installing-tdlib.md).
-- An `api_id` / `api_hash` pair from https://my.telegram.org/apps, exported as
-  `TDPY_API_ID` and `TDPY_API_HASH`.
+- An `api_id` / `api_hash` pair from https://my.telegram.org/apps.
+
+## Configuration
+
+Keep settings in a `.env` file in the directory your application runs from;
+tdpy reads it automatically. Start from [`.env.example`](.env.example):
+
+```ini
+TDJSON_PATH=/path/to/libtdjson.so
+TDPY_API_ID=1234567
+TDPY_API_HASH=0123456789abcdef0123456789abcdef
+TDPY_BOT_TOKEN=123456:ABC-DEF
+```
+
+| Variable | Read by | Meaning |
+|---|---|---|
+| `TDJSON_PATH` | the library loader | The `tdjson` library file, or a directory containing it |
+| `TDPY_API_ID`, `TDPY_API_HASH` | `TdlibSettings.from_env()` | From https://my.telegram.org/apps |
+| `TDPY_DATABASE_DIRECTORY` | `TdlibSettings.from_env()` | Optional; defaults to `td_session` |
+| `TDPY_BOT_TOKEN` | `EnvCredentials` | From @BotFather |
+| `TDPY_PHONE`, `TDPY_PASSWORD` | `EnvCredentials` | For user accounts instead of a bot |
+
+A variable exported in the shell overrides the file, which keeps CI and
+one-off runs working without editing it. `TDPY_ENV_FILE` points tdpy at a file
+elsewhere; a missing file is not an error. `.env` is git-ignored — never commit
+it.
+
+[`examples/echo_bot.py`](examples/echo_bot.py) is a complete echo bot configured
+entirely from this file: `python examples/echo_bot.py`.
 
 ## Logging in
 
@@ -210,6 +237,7 @@ await client.invoke({"@type": "getChat", "chat_id": 1}, retry=RetryPolicy())
 | Guide | |
 |---|---|
 | [Quickstart](docs/quickstart.md) | Install, sign in, send a message |
+| [Building bots, for AI agents](docs/ai-bot-guide.md) | Hard rules, a tested reference bot, recipes, offline tests |
 | [Logging in](docs/auth.md) | Phone, bot, QR, 2FA, sessions |
 | [Routing updates](docs/dispatch.md) | Routers, filters, middleware, FSM |
 | [Architecture](docs/architecture.md) | How the layers fit, and why |

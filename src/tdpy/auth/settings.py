@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import platform
 from dataclasses import dataclass, replace
 from pathlib import Path
 
 from tdpy import __version__
+from tdpy._envfile import getenv
 from tdpy.api import functions
 from tdpy.exceptions import TdpyError
 
@@ -106,13 +106,15 @@ class TdlibSettings:
     def from_env(cls, **overrides: object) -> TdlibSettings:
         """Read ``TDPY_API_ID`` and ``TDPY_API_HASH`` from the environment.
 
-        ``TDPY_DATABASE_DIRECTORY`` is honoured too. Keeping credentials out of
+        Each falls back to the application's ``.env`` file when it is not
+        exported (see :mod:`tdpy._envfile`). ``TDPY_DATABASE_DIRECTORY`` is
+        honoured too. Keeping credentials out of
         source is the point, so this raises rather than inventing a default.
 
         Raises:
             MissingCredentialsError: if either variable is absent or unusable.
         """
-        api_id, api_hash = os.environ.get("TDPY_API_ID"), os.environ.get("TDPY_API_HASH")
+        api_id, api_hash = getenv("TDPY_API_ID"), getenv("TDPY_API_HASH")
         if not api_id or not api_hash:
             missing = [
                 name
@@ -128,7 +130,7 @@ class TdlibSettings:
             message = f"TDPY_API_ID must be an integer, got {api_id!r}"
             raise MissingCredentialsError(message) from exc
 
-        directory = os.environ.get("TDPY_DATABASE_DIRECTORY")
+        directory = getenv("TDPY_DATABASE_DIRECTORY")
         if directory:
             overrides.setdefault("database_directory", Path(directory))
         return cls(api_id=numeric_id, api_hash=api_hash, **overrides)  # type: ignore[arg-type]

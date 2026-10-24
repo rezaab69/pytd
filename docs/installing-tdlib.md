@@ -9,13 +9,14 @@ In order, stopping at the first library that loads:
 
 1. The `library_path` argument, if you pass one.
 2. `$TDJSON_PATH` — either the library file itself or a directory containing it.
+   It may be exported or written in the application's `.env` file.
 3. An installed `tdjson` Python distribution, if you have one.
 4. `ctypes.util.find_library("tdjson")`.
 5. The bare filename, handed to the OS loader (`PATH`, `LD_LIBRARY_PATH`,
    `DYLD_LIBRARY_PATH`).
 6. Well-known system directories.
 
-**Naming a library — by argument or by `TDJSON_PATH` — suppresses every other
+**Naming a library — by argument or by `TDJSON_PATH`, exported or in `.env` — suppresses every other
 candidate.** Only an unguided search falls through the list. Quietly loading a
 different build than the one you named is worse than failing: the build under
 test would not be the build that loaded, and nothing would say so.
@@ -54,17 +55,22 @@ brew install tdlib
 
 ```bash
 sudo ldconfig
-# or, without installing system-wide:
-export TDJSON_PATH=/path/to/td/build/libtdjson.so
+# or, without installing system-wide, add this line to your application's .env:
+TDJSON_PATH=/path/to/td/build/libtdjson.so
 ```
 
 **Windows** — build with vcpkg or download a prebuilt `tdjson.dll`. The DLL
 needs its OpenSSL and zlib siblings in the same folder; `tdpy` registers that
 folder with `os.add_dll_directory` so they resolve.
 
-```powershell
-$env:TDJSON_PATH = "C:\td\bin\tdjson.dll"
+Then name it in your application's `.env`:
+
+```ini
+TDJSON_PATH=C:\td\bin\tdjson.dll
 ```
+
+or, for the current PowerShell session only,
+`$env:TDJSON_PATH = "C:\td\bin\tdjson.dll"`.
 
 ## Verifying
 

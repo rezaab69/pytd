@@ -5,7 +5,8 @@ from the same understanding of TDLib that the library itself was written from.
 A shared misunderstanding would pass every one of those tests. These do not
 have that problem.
 
-Skipped unless a real library loads and credentials are present::
+Skipped unless a real library loads and credentials are present, exported or
+in a ``.env`` file in the working directory::
 
     TDJSON_PATH=/path/to/libtdjson.so \\
     TDPY_API_ID=... TDPY_API_HASH=... \\
@@ -32,6 +33,7 @@ from pathlib import Path
 
 import pytest
 
+from tdpy._envfile import getenv
 from tdpy.api import types
 from tdpy.api.client import TypedClient
 from tdpy.auth import Authorization, BotCredentials, CallbackCredentials, PhoneNumber, TdlibSettings
@@ -56,9 +58,11 @@ def _require_library() -> None:
 
 
 def credentials() -> tuple[int, str]:
-    api_id, api_hash = os.environ.get("TDPY_API_ID"), os.environ.get("TDPY_API_HASH")
+    api_id, api_hash = getenv("TDPY_API_ID"), getenv("TDPY_API_HASH")
     if not api_id or not api_hash:
-        pytest.skip("set TDPY_API_ID and TDPY_API_HASH to run the integration tests")
+        pytest.skip(
+            "set TDPY_API_ID and TDPY_API_HASH (or put them in .env) to run the integration tests"
+        )
     return int(api_id), api_hash
 
 

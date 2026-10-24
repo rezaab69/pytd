@@ -165,8 +165,11 @@ class Dispatcher:
     async def feed(self, client: Client, update: types.Update) -> None:
         """Dispatch one update directly, bypassing the queue.
 
-        Exists for tests and for replaying updates; it awaits the handler, so
-        a failure surfaces to the caller instead of to the error handler.
+        Exists for tests and for replaying updates. It waits for the handler to
+        finish, but a handler's exception is *not* raised here: it goes to
+        ``on_error``, or to the log, exactly as in live dispatch. A test that
+        feeds updates should collect errors through ``on_error`` and assert
+        there were none, or a crashing handler will pass.
         """
         await self._dispatch(client, update)
 

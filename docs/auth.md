@@ -30,8 +30,10 @@ settings = TdlibSettings(
 ```
 
 `from_env()` reads `TDPY_API_ID`, `TDPY_API_HASH` and optionally
-`TDPY_DATABASE_DIRECTORY`, and raises `MissingCredentialsError` naming what is
-absent rather than inventing a default.
+`TDPY_DATABASE_DIRECTORY` — exported, or from a `.env` file in the working
+directory (`TDPY_ENV_FILE` names another) — and raises
+`MissingCredentialsError` naming what is absent rather than inventing a
+default.
 
 `use_message_database` implies `use_chat_info_database`, which implies
 `use_file_database`. TDLib turns them on regardless; `normalized()` makes that
@@ -43,7 +45,7 @@ explicit so the object does not misreport the session.
 |---|---|
 | `ConsoleCredentials()` | A person at a terminal |
 | `BotCredentials(token)` | Bots — a token is the whole login |
-| `EnvCredentials()` | Unattended runs |
+| `EnvCredentials()` | Unattended runs — `TDPY_BOT_TOKEN`, `TDPY_PHONE`, `TDPY_PASSWORD` from the environment or `.env` |
 | `CallbackCredentials(...)` | GUIs, web apps, tests |
 
 Console prompts run in a worker thread. `input()` blocks, and blocking the

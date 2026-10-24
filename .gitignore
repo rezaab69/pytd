@@ -13,3 +13,4 @@ td_session/
 *.so
 *.dll
 *.dylib
+.env
